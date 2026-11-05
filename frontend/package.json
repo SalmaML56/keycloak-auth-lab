@@ -1,0 +1,27 @@
+{
+  "name": "keycloak-auth-lab-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test:pkce": "tsx scripts/pkce_test.ts",
+    "check:auth-url": "tsx scripts/auth_url_check.ts"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.29",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

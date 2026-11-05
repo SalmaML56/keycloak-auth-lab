@@ -8,6 +8,7 @@ frontend that logs in with Authorization Code + PKCE.
 
 - `keycloak/` — docker-compose + realm export for Keycloak 26.
 - `backend/` — FastAPI API that validates Keycloak access tokens.
+- `frontend/` — Next.js app: Authorization Code + PKCE in the browser (no auth libraries).
 - `scripts/` — dev/testing helpers.
 - `CHECKLIST.md` — requirement-by-requirement status with evidence.
 
@@ -62,6 +63,37 @@ Rules enforced in this repo:
 | `GET /profile` | token | echo the caller's claims |
 | `GET /admin` | token + `admin` role | 403 for a valid token without the role |
 | `POST /introspect-demo` | token | RFC 7662 introspection via the `fastapi-api` client |
+
+## Frontend (Next.js)
+
+Authorization Code + PKCE implemented by hand with the Web Crypto API. **No
+auth libraries** (no NextAuth, no keycloak-js). Configuration comes from
+`NEXT_PUBLIC_*` (see `frontend/.env.local.example`); endpoints are read from
+Keycloak's discovery document (memoised once) with a `lib/config.ts` fallback.
+
+### Run it
+
+```bash
+cd frontend
+npm install
+npm run dev            # http://localhost:3000
+```
+
+The Keycloak client `nextjs-app` already allows redirect
+`http://localhost:3000/callback`, web origin `http://localhost:3000`, and
+post-logout redirect `http://localhost:3000`.
+
+### Checks
+
+```bash
+npm run build            # production build + typecheck
+npm run lint             # eslint
+npm run test:pkce        # RFC 7636 PKCE test vector
+npm run check:auth-url   # the login URL is accepted by Keycloak
+bash scripts/e2e_login_check.sh   # headless login + exchange + refresh + replay guard
+```
+
+See `TESTING.md` for the manual browser script (marked as not agent-verified).
 
 ## Test helpers
 

@@ -50,21 +50,33 @@ command output that I actually ran.
 
 | ID | Requirement | How verified | Evidence | Status |
 |----|-------------|--------------|----------|--------|
-| F1 | PKCE helper: verifier 43–128, S256 challenge, random state (Web Crypto) | code + node check | | TODO |
-| F2 | Login button: saves verifier/state, redirects with PKCE params | code | | TODO |
-| F3 | `/callback`: read code/state, reject mismatch, show error params | code | | TODO |
-| F4 | Code exchange with `code_verifier` + Strict Mode double-run guard | code | | TODO |
-| F5 | Tokens in memory + sessionStorage, comment on HttpOnly alternative | code | | TODO |
-| F6 | Home shows login state, decoded access/refresh/ID tokens, expiry countdown | code | | TODO |
-| F7 | Button "Call /public" | code | | TODO |
-| F8 | Button "Call /profile" with Bearer | code | | TODO |
-| F9 | Button "Call /admin" showing 200/403/401 | code | | TODO |
-| F10 | Button "Refresh token" + failure handling | code | | TODO |
-| F11 | Button "Logout" via end_session_endpoint + clear storage | code | | TODO |
-| F12 | `lib/config.ts` from `NEXT_PUBLIC_*`, `.env.local.example`, no hardcoded URLs | code | | TODO |
-| F13 | `npm run build` passes with no TS errors | build output | | TODO |
-| F14 | `npm run lint` passes | lint output | | TODO |
-| F15 | Manual browser test script provided | TESTING.md | | TODO |
+| F1 | PKCE helper: verifier 43–128, S256 challenge, random state (Web Crypto) | code + node check | `frontend/lib/pkce.ts` uses only `crypto.getRandomValues` + `crypto.subtle.digest`. `npm run test:pkce` → `computed challenge: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM` == RFC 7636 vector; `createVerifier(): length 43 ... OK`. No auth libraries anywhere. | PASS |
+| F2 | Login button: saves verifier/state, redirects with PKCE params | code | `app/page.tsx handleLogin()` creates verifier/challenge/state, stores `verifier`+`state` in sessionStorage, then `window.location.assign(await buildAuthorizationUrl(...))`. Live URL (check:auth-url) shows `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method=S256`, `state`. | PASS |
+| F3 | `/callback`: read code/state, reject mismatch, show error params | code | `app/callback/page.tsx` rejects missing `state`, `state` mismatch, missing `code`, missing verifier, and `?error=` params, each with a clear message. Headless E2E: `state check: MATCH`; replay/doc'd manual mismatch case in TESTING.md. | PASS |
+| F4 | Code exchange with `code_verifier` + Strict Mode double-run guard | code | `exchangeCode()` posts `code_verifier`; guard = `useRef` **and** `sessionStorage` `kc.code_consumed` flag, with a comment explaining Strict Mode's double-run and single-use codes. E2E: `token exchange: OK`; replayed code → `HTTP 400 error=invalid_grant` (proves why the guard is needed). | PASS |
+| F5 | Tokens in memory + sessionStorage, comment on HttpOnly alternative | code | `lib/tokens.ts` mirrors tokens to `sessionStorage`, with a comment explaining the XSS trade-off vs an HttpOnly cookie. | PASS |
+| F6 | Home shows login state, decoded access/refresh/ID tokens, expiry countdown | code | `app/page.tsx` shows Logged in / Not logged in, `<DecodedToken>` for access/ID/refresh (header+payload, labelled "NOT verified"), and a live 1s countdown to `expiresAt` that shows `expired` at 0. | PASS |
+| F7 | Button "Call /public" | code | `Call /public` button → `GET /public`; response rendered with status + body. | PASS |
+| F8 | Button "Call /profile" with Bearer | code | `Call /profile` sends `Authorization: Bearer <access_token>` via `lib/api.ts`. | PASS |
+| F9 | Button "Call /admin" showing 200/403/401 | code | `Call /admin`; `statusClass()` colours 200 green / 401 red / 403 orange (`.status-200/401/403` in globals.css). alice → 403, bob → 200, expired → 401 (B5/B4 + manual script). | PASS |
+| F10 | Button "Refresh token" + failure handling | code | `handleRefresh()` compares only `tail(token)` (last 6 chars); on failure clears tokens and shows a message. E2E: `refresh: HTTP 200 new access token ...syz0cA (was ...9slIcQ) -> changed`. | PASS |
+| F11 | Button "Logout" via end_session_endpoint + clear storage | code | `buildLogoutUrl(idToken)` sets `id_token_hint` + `post_logout_redirect_uri=http://localhost:3000` on the discovery `end_session_endpoint`; `clearTokens()`+`clearFlow()` run before redirect. | PASS |
+| F12 | `lib/config.ts` from `NEXT_PUBLIC_*`, `.env.local.example`, no hardcoded URLs | code | `lib/config.ts` reads all `NEXT_PUBLIC_*` (defaults for the lab); `frontend/.env.local.example` documents them; endpoints come from the well-known doc (memoised once in `lib/oauth.ts`) with a config-derived fallback. Components import from config — no literal URLs. | PASS |
+| F13 | `npm run build` passes with no TS errors | build output | `npm run build` → `✓ Compiled successfully in 8.2s` + `Linting and checking validity of types`; routes `/`, `/callback` statically generated. | PASS |
+| F14 | `npm run lint` passes | lint output | `npm run lint` → `✔ No ESLint warnings or errors`, exit 0. | PASS |
+| F15 | Manual browser test script provided | TESTING.md | `TESTING.md` §2 — 14 numbered steps + edge cases, every browser step labelled "NOT VERIFIED by agent, manual". | PASS |
+
+**Phase 3 extra checks**
+
+| ID | Requirement | Evidence | Status |
+|----|-------------|----------|--------|
+| F-ext-1 | No auth libraries (Web Crypto only) | `frontend/package.json` deps = next/react/react-dom only; PKCE via `crypto.subtle`. | PASS |
+| F-ext-2 | Strict Mode double-run guard (ref + sessionStorage) | see F4; replay of the code returns `invalid_grant`. | PASS |
+| F-ext-3 | Endpoints from well-known / `lib/config.ts`; no hardcoded URLs in components | `lib/oauth.ts getEndpoints()` memoised; components use config only. | PASS |
+| F-ext-4 | Decode helper: header+payload only, labelled NOT verification | `lib/jwt.ts` banner comment; UI note in `app/page.tsx`. | PASS |
+| F-ext-5 | PKCE RFC 7636 test vector via Node | `npm run test:pkce` → MATCH (see F1). | PASS |
+| F-ext-6 | Login URL returns a login page (curl -i) | `npm run check:auth-url` → `HTTP/1.1 200 OK`, no OAuth error page. | PASS |
+| F-ext-7 | End-to-end headless login + exchange + refresh + replay | `bash scripts/e2e_login_check.sh` → all PASS. | PASS |
 
 ## PHASE 4 — Tests & Learning (T1–T10, D1–D3)
 

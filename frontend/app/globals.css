@@ -1,0 +1,65 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  margin: 2rem auto;
+  max-width: 900px;
+  line-height: 1.5;
+}
+
+h1 {
+  font-size: 1.3rem;
+}
+
+section {
+  border: 1px solid #8884;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+button {
+  margin: 0.25rem 0.5rem 0.25rem 0;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+
+pre {
+  background: #8881;
+  padding: 0.6rem;
+  overflow: auto;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.status-200 {
+  color: #15803d;
+  font-weight: bold;
+}
+
+.status-401 {
+  color: #b91c1c;
+  font-weight: bold;
+}
+
+.status-403 {
+  color: #b45309;
+  font-weight: bold;
+}
+
+.status-other {
+  color: #6b7280;
+  font-weight: bold;
+}
+
+.expired {
+  color: #b91c1c;
+  font-weight: bold;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
