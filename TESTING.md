@@ -80,3 +80,50 @@ Then, in a browser (use a private window so no old session is reused):
   to "Not logged in."
 - **bob is admin** — log in as `bob` / `bob123`, click **Call /admin** →
   green **200** `{"message":"Welcome, admin.","username":"bob",…}`.
+
+---
+
+## 3. Automated test suite — cases a–k
+
+All of this is automated by `scripts/run_tests.sh` (it starts nothing; it
+requires Keycloak on 8080 and the backend on 8000). Run it with:
+
+```bash
+scripts/run_tests.sh          # full run (case c waits 75s)
+scripts/run_tests.sh --fast   # skip case c
+```
+
+Below is the manual equivalent of each case, with the **real status codes**
+captured from the last full run (`PASS=14 FAIL=0 SKIP=0`).
+
+Common setup (never prints the token):
+
+```bash
+export KEYCLOAK_URL=http://localhost:8080
+export API_URL=http://localhost:8000
+export REALM_URL=$KEYCLOAK_URL/realms/demo-realm
+status() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+TOKEN=$(scripts/get_token.sh alice alice123)
+```
+
+| Case | Command | Expected | Real result |
+|------|---------|----------|-------------|
+| a | `status -H "Authorization: Bearer $TOKEN" $API_URL/profile` | `200` | `200` ✅ |
+| b | `status $API_URL/profile` | `401` | `401` ✅ |
+| c | get a fresh `$TOKEN`, then `sleep 75` (60s lifetime + 10s leeway), then `status -H "Authorization: Bearer $TOKEN" $API_URL/profile` | `401` | `401` ✅ (after countdown 75→15s) |
+| d | `TAMPERED=$(python3 scripts/make_bad_tokens.py tamper "$TOKEN"); status -H "Authorization: Bearer $TAMPERED" $API_URL/profile` | `401` | `401` ✅ |
+| e | `NONE=$(python3 scripts/make_bad_tokens.py none); status -H "Authorization: Bearer $NONE" $API_URL/profile` | `401` | `401` ✅ |
+| f | `WRONG=$(bash scripts/wrong_aud_token.sh alice alice123); status -H "Authorization: Bearer $WRONG" $API_URL/profile` | `401` | `401` ✅ |
+| g | `ALICE=$(scripts/get_token.sh alice alice123); BOB=$(scripts/get_token.sh bob bob123)` then `status -H "Authorization: Bearer $ALICE" $API_URL/admin` and `status -H "Authorization: Bearer $BOB" $API_URL/admin` | `403` / `200` | `403` ✅ / `200` ✅ |
+| h | `curl -s -X POST $REALM_URL/protocol/openid-connect/token -d grant_type=refresh_token -d client_id=cli-test -d refresh_token=$REFRESH` — compare `…${ACCESS: -6}` with `…${NEW_ACCESS: -6}` | new token | `...ipOrwA -> ...JTaWKA` (changed) ✅ |
+| i | `status -X POST $REALM_URL/protocol/openid-connect/logout -d client_id=cli-test -d refresh_token=$REFRESH` then repeat the refresh call and read `.error` | `204`, then `invalid_grant` | `204` ✅, `invalid_grant` ✅ |
+| j | fresh token: `curl -s -X POST $API_URL/introspect-demo -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "{\"token\":\"$TOKEN\"}"` → `.active`; then after logout, same call authenticated with another user's token → `.active` | `true` / `false` | `true` ✅ / `false` ✅ |
+| k | after logout, `status -H "Authorization: Bearer $ACCESS_AFTER_LOGOUT" $API_URL/profile` | `200` (limitation demonstrated) | `200` ✅ |
+
+Case k in plain English: **a token revoked in Keycloak is still accepted by the
+backend until it expires, because the backend verifies tokens offline (it
+checks the signature and claims in the JWT) and never asks Keycloak whether the
+session is still alive.** Use a short access-token lifetime, and call
+introspection for sensitive actions, to reduce that window.
+
+Full-suite output is recorded in `CHECKLIST.md` (T2).

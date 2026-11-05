@@ -82,19 +82,19 @@ command output that I actually ran.
 
 | ID | Requirement | How verified | Evidence | Status |
 |----|-------------|--------------|----------|--------|
-| T1 | `scripts/get_token.sh <user> <password>` prints access (+refresh) token | run it | | TODO |
-| T2 | `scripts/run_tests.sh` runs all cases a–k with PASS/FAIL + summary | run it | | TODO |
-| T3 | TESTING.md documents case a (valid→200) and b (none→401) | TESTING.md | | TODO |
-| T4 | TESTING.md case c: expired token (wait 65s) → 401 | TESTING.md + script | | TODO |
-| T5 | TESTING.md case d: tampered payload → 401 | TESTING.md + script | | TODO |
-| T6 | TESTING.md case e: `alg=none` forged → 401 | TESTING.md + script | | TODO |
-| T7 | TESTING.md case f: wrong audience → 401 | TESTING.md + script | | TODO |
-| T8 | TESTING.md case g: alice /admin→403, bob /admin→200 | TESTING.md + script | | TODO |
-| T9 | TESTING.md cases h/i/j: refresh, logout invalid_grant, introspection active true/false | TESTING.md + script | | TODO |
-| T10 | TESTING.md case k: token still valid offline after logout (explained) | TESTING.md + script | | TODO |
-| D1 | LEARNING.md plain-English token/JWT/RS256/JWKS/PKCE explanations + flow diagram | LEARNING.md | | TODO |
-| D2 | LEARNING.md "10 questions my teacher may ask" with answers | LEARNING.md | | TODO |
-| D3 | LEARNING.md "10 most common errors and fixes" | LEARNING.md | | TODO |
+| T1 | `scripts/get_token.sh <user> <password>` prints access (+refresh) token | run it | `./scripts/get_token.sh alice alice123` prints a JWT; `--refresh` prints a refresh JWT (proven in G4). Reused by `run_tests.sh` (cases a, c, d, e, g, and the bob token in j). | PASS |
+| T2 | `scripts/run_tests.sh` runs all cases a–k with PASS/FAIL + summary | run it | `scripts/run_tests.sh` → all 14 checks `PASS`, `PASS=14 FAIL=0 SKIP=0`, `RESULT: PASS`, exit 0. Also proves the preflight guard (`API_URL=…:9999` → `ERROR: backend is not reachable … exit 2`) and `--fast` (`SKIP c expired token (--fast)`, `PASS=13 FAIL=0 SKIP=1`). | PASS |
+| T3 | TESTING.md documents case a (valid→200) and b (none→401) | TESTING.md | `TESTING.md` §3 table: a → `200`, b → `401` with exact curl and real results. | PASS |
+| T4 | TESTING.md case c: expired token (**wait 75s**) → 401 | TESTING.md + script | §3 case c: `sleep 75` (60s lifetime + 10s leeway) → `401`. Suite printed countdown `75s…15s remaining` then `PASS c expired token`. (Row text updated 65s→75s to match the implementation.) | PASS |
+| T5 | TESTING.md case d: tampered payload → 401 | TESTING.md + script | §3 case d: `make_bad_tokens.py tamper` → `401` (`PASS d tampered payload`). | PASS |
+| T6 | TESTING.md case e: `alg=none` forged → 401 | TESTING.md + script | §3 case e: `make_bad_tokens.py none` → `401` (`PASS e alg=none`). | PASS |
+| T7 | TESTING.md case f: wrong audience → 401 | TESTING.md + script | §3 case f: `wrong_aud_token.sh` (signed, `aud=wrong-api`) → `401` (`PASS f wrong audience`). | PASS |
+| T8 | TESTING.md case g: alice /admin→403, bob /admin→200 | TESTING.md + script | §3 case g: `403` / `200` (`PASS g alice …`, `PASS g bob …`). | PASS |
+| T9 | TESTING.md cases h/i/j: refresh, logout invalid_grant, introspection active true/false | TESTING.md + script | §3 h: `...ipOrwA -> ...JTaWKA` (changed); i: logout `204`, refresh `invalid_grant`; j: `active=true` fresh, `active=false` logged-out. Suite: `PASS h…`, `PASS i logout endpoint…`, `PASS i refresh after logout…`, `PASS j …active=true`, `PASS j …active=false`. | PASS |
+| T10 | TESTING.md case k: token still valid offline after logout (explained) | TESTING.md + script | §3 case k → `200` named "known limitation demonstrated"; plain-English why printed by the suite (offline verification ⇒ revocation not seen until `exp`). | PASS |
+| D1 | LEARNING.md plain-English token/JWT/RS256/JWKS/PKCE explanations + flow diagram | LEARNING.md | `LEARNING.md` — access/refresh/ID tokens, JWT header/payload/signature, RS256+JWKS, `kid/iss/aud/exp/azp/sid`, sessions, expiry/revocation + limitation and mitigations, numbered PKCE diagram, why PKCE, why the frontend never verifies. | PASS |
+| D2 | "10 questions my teacher may ask" with answers (was LEARNING.md → now QUESTIONS.md) | QUESTIONS.md | `QUESTIONS.md` — 10 Q&A incl. refresh token not sent to API, short lifetime, key rotation, RS256 vs HS256, 401 vs 403, sessionStorage safety. | PASS |
+| D3 | "10 common errors and fixes" (was LEARNING.md → now ERRORS.md) | ERRORS.md | `ERRORS.md` — 10 errors incl. issuer, audience, redirect URI, CORS, double-code `invalid_grant`, "Account is not fully set up", clock skew, Codespaces ports, wrong JWKS URL, expired token. | PASS |
 
 ## PHASE 5 — Final audit (A1–A6)
 
