@@ -1,0 +1,41 @@
+# Docker Compose for the Keycloak identity provider used by this lab.
+# One service only: Keycloak 26.0 running in dev mode with the demo realm
+# imported automatically at startup.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    # start-dev runs Keycloak over plain HTTP (good for a lab).
+    # --import-realm reads any realm JSON found in /opt/keycloak/data/import/.
+    command: ["start-dev", "--import-realm"]
+    environment:
+      # Bootstrap admin account for the Keycloak admin console.
+      # In Keycloak 26 these replace the older KEYCLOAK_ADMIN /
+      # KEYCLOAK_ADMIN_PASSWORD variables (which are now deprecated and
+      # only print a warning). Same credentials: admin / admin.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Expose the management interface (port 9000) so the healthcheck below
+      # can reach /health/ready. Without this the port is closed and the
+      # container reports permanently unhealthy.
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      # Host 8080 -> container 8080. This is the public URL the frontend,
+      # backend and browser all talk to: http://localhost:8080
+      - "8080:8080"
+    volumes:
+      # Mount the realm export into the folder Keycloak scans on startup.
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      # Keycloak 26 exposes health endpoints on its management port (9000),
+      # NOT on 8080. /health/ready returns 200 once the server can serve
+      # requests. We use bash's built-in /dev/tcp because curl may not be
+      # present in the image.
+      test:
+        - "CMD-SHELL"
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3 && head -c 15 <&3 | grep -q 200"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # Keycloak needs a while to boot and import the realm on first run.
+      start_period: 40s
