@@ -27,7 +27,7 @@ command output that I actually ran.
 | G1 | JWKS endpoint lists signing key; `kid` of an alice token header matches a JWKS `kid` | `curl .../protocol/openid-connect/certs` + decode token header | `certs` → `{'kid':'mbE7nBN_Og6jwiz6ZQIF2ixHDQ7dHZkaLA87ni78rjw','alg':'RS256','use':'sig','kty':'RSA'}` and `{'kid':'1SHnJzP3ktkkzAR3Wms_TUJp4r0tkUxq_neZd1Hao0s','alg':'RSA-OAEP','use':'enc','kty':'RSA'}`; token header `kid` = `mbE7nBN_…78rjw` → `MATCH = True` (after G5 fresh import; pre-import kids were `xKYIYCwX…`/`0qpK2n2k…`, also matched). | PASS |
 | G2 | Admin console responds; `admin/admin` can get a master-realm admin token | `curl -w` status only (token never printed) | `/admin/` → `HTTP 302` (redirect to login); master admin token request → `HTTP 200`. | PASS |
 | G3 | `nextjs-app` post logout redirect URI `http://localhost:3000` present; redirect list + web origins still match K3 | Keycloak admin API `kcadm get clients` | `post.logout.redirect.uris = 'http://localhost:3000'` **(already present — no fix needed)**; `redirectUris = ['http://localhost:3000/callback']`, `webOrigins = ['http://localhost:3000']` → still match K3. No re-import performed. | PASS |
-| G4 | `scripts/get_token.sh <user> <password>` prints access token; `--refresh` prints refresh token; dev-only comment; run for alice & bob with decoded `iss/aud/exp/azp/sid/realm_access.roles` | run script + decode | alice → `iss=http://localhost:8080/realms/demo-realm, aud=fastapi-api, azp=cli-test, realm_access={'roles':['user']}`; bob → same `iss/aud/azp`, `realm_access={'roles':['admin','user']}`; `exp` present (e.g. `1793865029`); `sid` present (e.g. `59c88e47-1b22-45a4-b1a0-6a91e06add92`); `--refresh` returned a refresh JWT (`eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwi…`); bad password → `exit=1` / `Keycloak error: invalid_grant`. | PASS |
+| G4 | `scripts/get_token.sh <user> <password>` prints access token; `--refresh` prints refresh token; dev-only comment; run for alice & bob with decoded `iss/aud/exp/azp/sid/realm_access.roles` | run script + decode | alice → `iss=http://localhost:8080/realms/demo-realm, aud=fastapi-api, azp=cli-test, realm_access={'roles':['user']}`; bob → same `iss/aud/azp`, `realm_access={'roles':['admin','user']}`; `exp` present (e.g. `1793865029`); `sid` present (e.g. `59c88e47-1b22-45a4-b1a0-6a91e06add92`); `--refresh` returned a refresh token in JWT form (redacted here — no token material kept); bad password → `exit=1` / `Keycloak error: invalid_grant`. | PASS |
 | G5 | Clean start: `down -v` → `up -d` → healthy → G1–G4 pass from fresh import | run sequence | `down -v` removed container + `keycloak_default` network; `up -d` recreated; health poll `starting… → t=55s status=healthy`. Fresh re-runs: G1 kid match True, G2 `/admin/ 302` + admin token `200`, G3 logout URI present, G4 alice `['user']` / bob `['admin','user']`. | PASS |
 | G6 | `.commandcode/` in `.gitignore`; `.env` files untracked | git + check-ignore | `git check-ignore -v .commandcode/` → `.gitignore:23:.commandcode/`; `git ls-files | grep -i .env` → none tracked; `find . -name '.env*'` → none on disk. | PASS |
 
@@ -100,12 +100,22 @@ command output that I actually ran.
 
 | ID | Requirement | How verified | Evidence | Status |
 |----|-------------|--------------|----------|--------|
-| A1 | Map each of the 5 original task points to files + checklist items | written mapping | | TODO |
-| A2 | Print final checklist, list every non-PASS item and why | this file | | TODO |
-| A3 | Clean-start test: `docker compose down -v` → up → backend → `run_tests.sh` | command output | | TODO |
-| A4 | README with exact start order, URLs, passwords, Codespaces note | README.md | | TODO |
-| A5 | `git status` clean of secrets; commit (no push) | git output | | TODO |
-| A6 | "What I could not verify" + "Known limitations" | README/final message | | TODO |
+| A1 | Map each of the 5 original task points to files + checklist items | written mapping | See "Original task → artifacts" table below. | PASS |
+| A2 | Print final checklist, list every non-PASS item and why | this file | Checklist printed in full via `cat CHECKLIST.md`; **zero non-PASS rows** (all K/G/B/F/T/D/A are PASS). The only unverified things are browser-only UI steps, which are labelled inside TESTING.md and listed in "What I could not verify". | PASS |
+| A3 | Clean-start test: `docker compose down -v` → up → backend → `run_tests.sh` | command output | `down -v` removed container+network; `up -d` recreated; health poll → `t=65s status=healthy`; backend `/health` 200; `scripts/run_tests.sh` → `PASS=14 FAIL=0 SKIP=0`, `RESULT: PASS`, exit 0. | PASS |
+| A4 | README with exact start order, URLs, passwords, Codespaces note | README.md | `README.md` — what/why, folder structure, ordered start commands for all 3 services, URL table, dev users table, how to run tests, Codespaces note (VS Code Desktop), and a "DEV ONLY" security-notes section. | PASS |
+| A5 | `git status` clean of secrets; commit (no push) | git output | `git ls-files` has no `.env`/key files; history scan for `eyJ`/`Bearer `/`secret` documented; one truncated JWT prefix was found in old evidence and **redacted** (still in commit `c3dc76c` history — disclosed). Committed locally, not pushed. | PASS |
+| A6 | "What I could not verify" + "Known limitations" | README/final message | Both lists in the final Phase 5 message (browser UI steps; offline-verification window; dev-only secrets in git; `next lint` deprecation; etc.). | PASS |
+
+### Original task → artifacts (A1)
+
+| Original task point | Files | Checklist items |
+|---------------------|-------|-----------------|
+| 1. Docker Keycloak | `keycloak/docker-compose.yml`, `keycloak/realm-export.json` | K1, K2, G1, G2 |
+| 2. OIDC provider: realm, clients, roles, users | `keycloak/realm-export.json` | K3, K4, K5, K6, K7, G3 |
+| 3. Frontend: Authorization Code + PKCE + callback | `frontend/lib/pkce.ts`, `frontend/lib/oauth.ts`, `frontend/lib/tokens.ts`, `frontend/app/page.tsx`, `frontend/app/callback/page.tsx` | F1–F4, F12, F-ext-2/3/5/6/7 |
+| 4. Token practice: JWKS signature validation, sessions, expiry, revocation | `backend/app/jwks.py`, `backend/app/auth.py`, `backend/app/config.py`; `scripts/run_tests.sh`, `scripts/make_bad_tokens.py`, `scripts/wrong_aud_token.sh`; `TESTING.md`, `LEARNING.md` | B2, B3, B4, K7, K8, T1–T10, D1 |
+| 5. Protected FastAPI APIs | `backend/app/main.py`, `backend/app/auth.py`, `scripts/check_route_protection.py` | B5, B6, B7, B8, B9 |
 
 ---
 
